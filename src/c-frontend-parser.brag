@@ -1,0 +1,65 @@
+#lang brag
+
+prog         : global-stmt*
+
+global-stmt  : function
+             | @global-line-stmt /";"
+
+global-line-stmt
+             : func-sig
+             | "typedef" type ID
+             | lut-decl
+
+; We only support const global arrays at the moment... it makes life easier
+lut-decl     : /"static"? /"const" type ID /"[" INT /"]" /"=" /"{" @int-init /"}"
+int-init     : [INT (/"," INT)*]
+
+function     : @func-sig /"{" fn-block /"}"
+
+func-sig     : /"static"? qual-type ID /"(" param-list /")"
+param-list   : var-decl?
+             | var-decl (/"," var-decl)*
+var-decl     : qual-type ID
+@qual-type   : /"const"? type
+type         : ID
+
+block        : stmt*
+
+; To simplify reasoning about control flow, don't support returns anywhere
+; other than at the end of a function
+fn-block     : @block return?
+return       : "return" expr /";"
+
+stmt         : @line-stmt /";"
+             | while-loop
+             | for-loop
+             | if-stmt
+             | @stmt /";"
+
+line-stmt    : var-decl-assign
+             | update-assign
+             | func-sig
+
+@var-decl-assign : @var-decl "=" expr
+@update-assign   : ID assign-op expr
+
+@while-loop  : "while" /"(" expr /")" /"{" block /"}"
+
+; Only support basic for loops of the form for(type_t var = expr; expr; var = expr) {}
+; Dropping the braces isnt supported, nor more complex expressions
+@for-loop    : "for" /"(" var-decl-assign /";" expr /";" update-assign /")" /"{" block /"}"
+
+; Don't currently support else etc
+@if-stmt     : "if" /"(" expr /")" /"{" block /"}"
+
+expr         : INT
+             | ID
+             | expr @bin-op expr
+             | func-call
+             | ID "[" expr "]"
+             | /"(" @expr /")"
+
+@bin-op      : "+" | "*" | "&" | "|" | "^" | "<<" | ">>" | "<" | ">"
+@assign-op   : "=" | "+=" | "*=" | "&=" | "|=" | "^=" | "<<=" | ">>="
+
+func-call    : ID /"(" [expr (/"," expr)*] /")"
