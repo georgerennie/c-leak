@@ -55,7 +55,9 @@
     (define scope (car (parse-state-var-idxs (block-state-parse state))))
     (hash-set! scope name idx))
   ; Add to function
-  (hash-set! (ast-function-widths (block-state-func state)) idx width)
+  (define func (block-state-func state))
+  (define widths (ast-function-widths func))
+  (set-ast-function-widths! func (append widths (list width)))
   idx)
 
 (define/contract (var-idx var-name state)
@@ -111,7 +113,7 @@
      (lambda (state)
        (new-scope state)
 
-       (define func (ast-function name (length params) (make-hash) '()))
+       (define func (ast-function name (length params) '() '()))
        (define state+ (block-state state func))
        (add-var state+ (ret-type state) #:idx 0)
 
@@ -207,9 +209,9 @@
           a-var
           b-var))
        (define widths (ast-function-widths (block-state-func state)))
-       (define a-width (hash-ref widths a-var))
-       (define b-width (hash-ref widths b-var))
-       (define width (max 32 (max a-width b-width)))
+       (define a-width (list-ref widths a-var))
+       (define b-width (list-ref widths b-var))
+       (define width (max 32 a-width b-width))
        (define lhs (or assign-to (add-var state width)))
        (values (append a-ast b-ast (list (assign lhs op+))) lhs)]
       ; LUT lookup
@@ -275,13 +277,12 @@
        (define func-widths (ast-function-widths func))
 
        ; Add variable widths to caller state
-       (hash-for-each
-        func-widths
-        (lambda (idx width)
-          (hash-set! (ast-function-widths (block-state-func state)) (+ base idx) width)))
+       (set-ast-function-widths! (block-state-func state)
+                                 (append (ast-function-widths (block-state-func state))
+                                         func-widths))
 
        ; Assign return variable back out of inlined function
-       (define ret-width (hash-ref func-widths 0))
+       (define ret-width (car func-widths))
        (define ret-var (or assign-to (add-var state ret-width)))
        (define asn-ret (list (assign ret-var (op-id base))))
 

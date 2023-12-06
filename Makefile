@@ -1,8 +1,8 @@
-.PHONY: mini_aes, verify_mini_aes, lower_mini_aes, fmt, clean
+.PHONY: mini_aes verify_mini_aes lower_mini_aes fmt clean
 
 EXE := racket c-leak.rkt
 RKT_SRCS := c-leak.rkt $(wildcard src/*.rkt)
-SRCS := ${RKT_SRCS} $(wildcard src/*.brag)
+TOOL_SRCS := ${RKT_SRCS} $(wildcard src/*.brag)
 
 MINI_AES_CORE := mini_aes/mini_aes.c
 MINI_AES_LOWERED := mini_aes/mini_aes_lowered.c
@@ -20,7 +20,7 @@ verify_mini_aes: ${MINI_AES_VERIFY} ${MINI_AES_CORE} ${MINI_AES_LOWERED}
 		--ub-shift-check \
 		$<
 
-${MINI_AES_LOWERED}: ${MINI_AES_CORE}
+${MINI_AES_LOWERED}: ${MINI_AES_CORE} ${TOOL_SRCS}
 	${EXE} --lowered-path $@ --lowered-prefix "c_leak_" $<
 
 ${MINI_AES_EXE}: ${MINI_AES_SRCS}
