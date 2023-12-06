@@ -51,6 +51,7 @@
                             [(op-xor? op) (bvxor a b)]
                             [(op-sll? op) (bvshl a b)]
                             [(op-srl? op) (bvlshr a b)]
+                            [(op-eq? op) (bool->bitvector (bveq a b))]
                             [(op-lt? op) (bool->bitvector (bvult a b))]
                             [(op-gt? op) (bool->bitvector (bvugt a b))]))
                         (set val res-width)])
@@ -65,30 +66,36 @@
              (define cond (vector-ref vars cond-idx))
              (define gated-expr (map (lambda (s) (if (bvzero? cond) (stmt-nop) s)) body))
              (append gated-expr tail)]
+            [(stmt-assert cond-idx)
+             (define cond (vector-ref vars cond-idx))
+             (assert (not (bvzero? cond)) "User assertion")
+             tail]
             [(stmt-nop) tail]))
 
-(define (symb-exec func)
-  ; Setup initial state
+(define (symb-init-state func)
   (define widths-list (ast-function-widths func))
   (define widths (vector->immutable-vector (list->vector widths-list)))
 
   ; Initialise all variables to symbolic values
   (define vars
     (list->vector (map (lambda (width)
-                         (define-symbolic* var (bitvector width))
+                         (define width+ (max 1 width))
+                         (define-symbolic* var (bitvector width+))
                          var)
                        widths-list)))
 
-  (define state (exec-state vars widths))
+  (exec-state vars widths))
+
+(define (symb-exec func fuel)
+  (define state (symb-init-state func))
   (define ast (ast-function-ast func))
 
   ; Define execution function
-  (define (symb-exec-core state ast [fuel 1000])
+  (define (symb-exec-core state ast fuel)
     (assert (> fuel 0) "Ran out of fuel")
-    (define ast+ (step state ast))
-    (if (null? ast+) (exec-state-vars state) (symb-exec-core state ast+ (- fuel 1))))
+    (if (null? ast) (exec-state-vars state) (symb-exec-core state (step state ast) (- fuel 1))))
 
   ; Run, verifying assertions
-  (displayln (verify (symb-exec-core state ast))))
+  (displayln (verify (symb-exec-core state ast fuel))))
 
 (provide symb-exec)

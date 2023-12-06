@@ -39,6 +39,7 @@ stmt         : @line-stmt /";"
 line-stmt    : var-decl-assign
              | update-assign
              | func-sig
+             | "assert" /"(" expr /")"
 
 @var-decl-assign : @var-decl "=" expr
 @update-assign   : ID assign-op expr
@@ -59,7 +60,7 @@ expr         : INT
              | ID "[" expr "]"
              | /"(" @expr /")"
 
-@bin-op      : "+" | "*" | "&" | "|" | "^" | "<<" | ">>" | "<" | ">"
+@bin-op      : "+" | "*" | "&" | "|" | "^" | "<<" | ">>" | "==" | "<" | ">"
 @assign-op   : "=" | "+=" | "*=" | "&=" | "|=" | "^=" | "<<=" | ">>="
 
 func-call    : ID /"(" [expr (/"," expr)*] /")"

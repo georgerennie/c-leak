@@ -1,4 +1,4 @@
-.PHONY: mini_aes verify_mini_aes lower_mini_aes fmt clean
+.PHONY: mini_aes verify_mini_aes verify_lowered_mini_aes lower_mini_aes fmt clean
 
 EXE := racket c-leak.rkt
 RKT_SRCS := c-leak.rkt $(wildcard src/*.rkt)
@@ -18,10 +18,17 @@ verify_mini_aes: ${MINI_AES_VERIFY} ${MINI_AES_CORE} ${MINI_AES_LOWERED}
 		--k-induction --parallel-solving \
 		--overflow-check --unsigned-overflow-check \
 		--ub-shift-check \
+		$^
+
+verify_lowered_mini_aes: ${MINI_AES_CORE} ${TOOL_SRCS}
+	${EXE} \
+		--verify mini_aes_check_enc_dec \
+		--verify mini_aes_check_dec_enc \
+		--fuel 5000 \
 		$<
 
 ${MINI_AES_LOWERED}: ${MINI_AES_CORE} ${TOOL_SRCS}
-	${EXE} --lowered-path $@ --lowered-prefix "c_leak_" $<
+	${EXE} --lowered-path $@ --lowered-prefix "lowered_" $<
 
 ${MINI_AES_EXE}: ${MINI_AES_SRCS}
 	${CC} -O3 -Wall -o $@ $^

@@ -8,9 +8,9 @@
   (define (next-token)
     (define whileleak-lexer
       (lexer-src-pos
-       [(:or "typedef" "while" "for" "if" "const" "static" "return") lexeme]
+       [(:or "typedef" "while" "for" "if" "const" "static" "return" "assert") lexeme]
        [(:: (char-set "+*&|^") "=") lexeme]
-       [(:or "<<" ">>" "<<=" ">>=") lexeme]
+       [(:or "<<" ">>" "<<=" ">>=" "==") lexeme]
        [(char-set "[]{}()=;+*<>,&|^") lexeme]
        ["false" (token 'INT 0)]
        ["true" (token 'INT 1)]

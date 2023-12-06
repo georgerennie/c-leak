@@ -20,11 +20,12 @@
 (struct op-xor bin-op ())
 (struct op-sll bin-op ())
 (struct op-srl bin-op ())
+(struct op-eq bin-op ())
 (struct op-lt bin-op ())
 (struct op-gt bin-op ())
 
 (define (bool-op? op)
-  (or (op-lt? op) (op-gt? op)))
+  (or (op-eq? op) (op-lt? op) (op-gt? op)))
 
 (provide (struct-out un-op)
          (struct-out bin-op)
@@ -39,6 +40,7 @@
          (struct-out op-xor)
          (struct-out op-sll)
          (struct-out op-srl)
+         (struct-out op-eq)
          (struct-out op-lt)
          (struct-out op-gt)
          bool-op?)
@@ -59,12 +61,18 @@
                     natural?)
                   [body block?])
                  #:transparent)
+(struct/contract stmt-assert
+                 stmt
+                 ((cond
+                    natural?))
+                 #:transparent)
 
 (provide (struct-out stmt)
          block?
          (struct-out stmt-assign)
          (struct-out stmt-while)
-         (struct-out stmt-if))
+         (struct-out stmt-if)
+         (struct-out stmt-assert))
 
 ; Functions are stored in a basic form, as a list of statements which are
 ; either direct assignments from operations acting on variables (by index),

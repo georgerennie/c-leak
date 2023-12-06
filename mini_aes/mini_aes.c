@@ -1,3 +1,4 @@
+#include <assert.h>
 #include "mini_aes.h"
 
 static const uint8_t s_box[16u] = {
@@ -89,12 +90,12 @@ static block_t mix_column(const block_t block) {
 
 	// d0 = 3*c0 + 2*c1
 	// d1 = 2*c0 + 3*c1
-	new_block |= (gf_mul(3u, c0) ^ gf_mul(2u, c1)) << 12u;
-	new_block |= (gf_mul(2u, c0) ^ gf_mul(3u, c1)) << 8u;
+	new_block |= (gf_mul(c0, 3u) ^ gf_mul(c1, 2u)) << 12u;
+	new_block |= (gf_mul(c0, 2u) ^ gf_mul(c1, 3u)) << 8u;
 	// d2 = 3*c2 + 2*c3
 	// d3 = 2*c2 + 3*c3
-	new_block |= (gf_mul(3u, c2) ^ gf_mul(2u, c3)) << 4u;
-	new_block |= (gf_mul(2u, c2) ^ gf_mul(3u, c3));
+	new_block |= (gf_mul(c2, 3u) ^ gf_mul(c3, 2u)) << 4u;
+	new_block |= (gf_mul(c2, 2u) ^ gf_mul(c3, 3u));
 
 	return new_block;
 }
@@ -136,4 +137,12 @@ block_t mini_aes_decrypt_block(const block_t cipher, const block_t key) {
 	const block_t plain = c0 ^ k0;
 
 	return plain;
+}
+
+void mini_aes_check_enc_dec(const block_t plain, const block_t key) {
+	assert(mini_aes_decrypt_block(mini_aes_encrypt_block(plain, key), key) == plain);
+}
+
+void mini_aes_check_dec_enc(const block_t plain, const block_t key) {
+	assert(mini_aes_decrypt_block(mini_aes_encrypt_block(plain, key), key) == plain);
 }

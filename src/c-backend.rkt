@@ -34,6 +34,7 @@
                 [(op-xor? op) "^"]
                 [(op-sll? op) "<<"]
                 [(op-srl? op) ">>"]
+                [(op-eq? op) "=="]
                 [(op-lt? op) "<"]
                 [(op-gt? op) ">"])
               (var-to-str b))]
@@ -58,7 +59,8 @@
     [(stmt-if cond body)
      (fprintf port "~aif (~a) {~n" prefix (var-to-str cond))
      (block-to-c body port (string-append prefix "\t"))
-     (fprintf port "~a}~n" prefix)])
+     (fprintf port "~a}~n" prefix)]
+    [(stmt-assert cond) (fprintf port "~aassert(~a);~n" prefix (var-to-str cond))])
   (void))
 
 (define/contract (block-to-c block port [prefix ""])
@@ -124,6 +126,7 @@
   (-> (hash/c string? ast-function?) output-port? string? void?)
   (displayln "#include <stdint.h>" port)
   (displayln "#include <stdbool.h>" port)
+  (displayln "#include <assert.h>" port)
   (hash-for-each
    functions
    (lambda (_ f)

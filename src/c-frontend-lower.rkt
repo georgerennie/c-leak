@@ -204,6 +204,7 @@
             [("^") op-xor]
             [("<<") op-sll]
             [(">>") op-srl]
+            [("==") op-eq]
             [("<") op-lt]
             [(">") op-gt])
           a-var
@@ -242,13 +243,15 @@
               [(op-xor? op) (op-xor a+ b+)]
               [(op-sll? op) (op-sll a+ b+)]
               [(op-srl? op) (op-srl a+ b+)]
+              [(op-eq? op) (op-eq a+ b+)]
               [(op-lt? op) (op-lt a+ b+)]
               [(op-gt? op) (op-gt a+ b+)])]
            [(op-lut idx lut) (op-lut (+ base idx) lut)]
            [_ op]))
        (stmt-assign (+ base lhs) op+)]
       [(stmt-while cond body) (stmt-while (+ base cond) (rebase-ast body base))]
-      [(stmt-if cond body) (stmt-if (+ base cond) (rebase-ast body base))])))
+      [(stmt-if cond body) (stmt-if (+ base cond) (rebase-ast body base))]
+      [(stmt-assert cond) (stmt-assert (+ base cond))])))
 
 (define/contract (func-call . ast)
   ; Same types as expr
@@ -316,6 +319,9 @@
        (define body-ast (block state))
        (end-scope state)
        (append cond-ast (list (stmt-if cond-var body-ast)))]
+      [(list "assert" cond-expr)
+       (define-values (cond-ast cond-var) (cond-expr state))
+       (append cond-ast (list (stmt-assert cond-var)))]
       [(list id "=" expr)
        (define var (var-idx id (block-state-parse state)))
        (define-values (ast _) (expr state var))
