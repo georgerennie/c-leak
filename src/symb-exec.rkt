@@ -5,6 +5,8 @@
 
 (struct exec-state ([vars #:mutable] widths) #:transparent)
 
+(struct stmt-nop stmt () #:transparent)
+
 (define (bv-cast width old-width var)
   (if (<= width old-width) (extract (- width 1) 0 var) (zero-extend var (bitvector width))))
 
@@ -14,7 +16,7 @@
   (define vars (exec-state-vars state))
   (define widths (exec-state-widths state))
   (destruct stmt
-            [(assign lhs op)
+            [(stmt-assign lhs op)
              (define lhs-width (vector-ref widths lhs))
              (define (set val width)
                ; Handle assignment to bools
@@ -37,8 +39,8 @@
                         (define a-width (vector-ref widths a-idx))
                         (define b-width (vector-ref widths b-idx))
                         (define op-width (max 32 a-width b-width))
-                        (define a (bv-cast op-width (vector-ref vars a-idx)))
-                        (define b (bv-cast op-width (vector-ref vars b-idx)))
+                        (define a (bv-cast op-width a-width (vector-ref vars a-idx)))
+                        (define b (bv-cast op-width b-width (vector-ref vars b-idx)))
                         (define res-width (if (bool-op? op) 1 op-width))
                         (define val
                           (cond
@@ -53,9 +55,17 @@
                             [(op-gt? op) (bool->bitvector (bvugt a b))]))
                         (set val res-width)])
              tail]
-            [(while cond-idx body)
+            [(stmt-while cond-idx body)
              (define cond (vector-ref vars cond-idx))
-             (if (bvzero? cond) tail (append body ast))]))
+             (if (bvzero? cond) tail (append body ast))]
+            ; Hacky way of treating if statements that gives better symb exec
+            ; performance - always execute the body but convert it to no-ops
+            ; if needed
+            [(stmt-if cond-idx body)
+             (define cond (vector-ref vars cond-idx))
+             (define gated-expr (map (lambda (s) (if (bvzero? cond) (stmt-nop) s)) body))
+             (append gated-expr tail)]
+            [(stmt-nop) tail]))
 
 (define (symb-exec func)
   ; Setup initial state
@@ -73,12 +83,12 @@
   (define ast (ast-function-ast func))
 
   ; Define execution function
-  (define (symb-exec-core state ast [fuel 500])
+  (define (symb-exec-core state ast [fuel 1000])
     (assert (> fuel 0) "Ran out of fuel")
     (define ast+ (step state ast))
     (if (null? ast+) (exec-state-vars state) (symb-exec-core state ast+ (- fuel 1))))
 
   ; Run, verifying assertions
-  (verify (symb-exec-core state ast)))
+  (displayln (verify (symb-exec-core state ast))))
 
 (provide symb-exec)

@@ -47,13 +47,17 @@
 (define/contract (stmt-to-c stmt port [prefix ""])
   (->* [stmt? output-port?] [string?] void?)
   (match stmt
-    [(assign lhs op)
+    [(stmt-assign lhs op)
      (fprintf port "~a~a = " prefix (var-to-str lhs))
      (op-to-c op port)
      (displayln ";" port)]
-    [(while cond block)
+    [(stmt-while cond body)
      (fprintf port "~awhile (~a) {~n" prefix (var-to-str cond))
-     (block-to-c block port (string-append prefix "\t"))
+     (block-to-c body port (string-append prefix "\t"))
+     (fprintf port "~a}~n" prefix)]
+    [(stmt-if cond body)
+     (fprintf port "~aif (~a) {~n" prefix (var-to-str cond))
+     (block-to-c body port (string-append prefix "\t"))
      (fprintf port "~a}~n" prefix)])
   (void))
 

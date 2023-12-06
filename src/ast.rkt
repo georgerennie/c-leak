@@ -46,18 +46,25 @@
 ; Statements
 (struct stmt ())
 (define block? (listof stmt?))
-(struct/contract assign stmt ([lhs natural?] [op op?]) #:transparent)
-(struct/contract while
+(struct/contract stmt-assign stmt ([lhs natural?] [op op?]) #:transparent)
+(struct/contract stmt-while
                  stmt
                  ((cond
                     natural?)
-                  [block block?])
+                  [body block?])
+                 #:transparent)
+(struct/contract stmt-if
+                 stmt
+                 ((cond
+                    natural?)
+                  [body block?])
                  #:transparent)
 
 (provide (struct-out stmt)
          block?
-         (struct-out assign)
-         (struct-out while))
+         (struct-out stmt-assign)
+         (struct-out stmt-while)
+         (struct-out stmt-if))
 
 ; Functions are stored in a basic form, as a list of statements which are
 ; either direct assignments from operations acting on variables (by index),

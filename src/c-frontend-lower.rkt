@@ -181,14 +181,14 @@
       [(list id)
        #:when (string? id)
        (define var (var-idx id (block-state-parse state)))
-       (values (if assign-to (list (assign assign-to (op-id var))) '()) (or assign-to var))]
+       (values (if assign-to (list (stmt-assign assign-to (op-id var))) '()) (or assign-to var))]
       ; Constant value
       [(list int)
        #:when (natural? int)
        (define op (op-const int))
        (define width (const-width int))
        (define lhs (or assign-to (add-var state width)))
-       (values (list (assign lhs op)) lhs)]
+       (values (list (stmt-assign lhs op)) lhs)]
       ; Function call
       [(list func) (func state assign-to)]
       ; Standard binary operator
@@ -213,14 +213,14 @@
        (define b-width (list-ref widths b-var))
        (define width (max 32 a-width b-width))
        (define lhs (or assign-to (add-var state width)))
-       (values (append a-ast b-ast (list (assign lhs op+))) lhs)]
+       (values (append a-ast b-ast (list (stmt-assign lhs op+))) lhs)]
       ; LUT lookup
       [(list id "[" expr "]")
        (define-values (expr-ast expr-var) (expr state))
        (define lut (hash-ref (parse-state-luts (block-state-parse state)) id))
        (define-values (width vals) (values (car lut) (cdr lut)))
        (define lhs (or assign-to (add-var state width)))
-       (values (append expr-ast (list (assign lhs (op-lut expr-var vals)))) lhs)])))
+       (values (append expr-ast (list (stmt-assign lhs (op-lut expr-var vals)))) lhs)])))
 
 ; When inlining existing functions into the current one, this shifts all variable
 ; indices up by base so they don't overlap
@@ -228,7 +228,7 @@
   (-> block? natural? block?)
   (for/list ([stmt ast])
     (match stmt
-      [(assign lhs op)
+      [(stmt-assign lhs op)
        (define op+
          (match op
            [(op-id a) (op-id (+ base a))]
@@ -246,8 +246,9 @@
               [(op-gt? op) (op-gt a+ b+)])]
            [(op-lut idx lut) (op-lut (+ base idx) lut)]
            [_ op]))
-       (assign (+ base lhs) op+)]
-      [(while cond block) (while (+ base cond) (rebase-ast block base))])))
+       (stmt-assign (+ base lhs) op+)]
+      [(stmt-while cond body) (stmt-while (+ base cond) (rebase-ast body base))]
+      [(stmt-if cond body) (stmt-if (+ base cond) (rebase-ast body base))])))
 
 (define/contract (func-call . ast)
   ; Same types as expr
@@ -269,7 +270,7 @@
        ; Assign the arguments into the function's equivalent variables
        (define asn-args-ast
          (for/list ([var args-vars] [i (in-naturals)])
-           (assign (+ base i 1) (op-id var))))
+           (stmt-assign (+ base i 1) (op-id var))))
 
        ; Process function so that it's variable indices are shifted
        (define func (hash-ref (parse-state-functions (block-state-parse state)) id))
@@ -284,7 +285,7 @@
        ; Assign return variable back out of inlined function
        (define ret-width (car func-widths))
        (define ret-var (or assign-to (add-var state ret-width)))
-       (define asn-ret (list (assign ret-var (op-id base))))
+       (define asn-ret (list (stmt-assign ret-var (op-id base))))
 
        (values (append args-ast asn-args-ast func-ast asn-ret) ret-var))]))
 
@@ -297,7 +298,7 @@
        (new-scope state)
        (define body-ast (body state))
        (end-scope state)
-       (append cond-ast (list (while cond-var (append body-ast cond-ast))))]
+       (append cond-ast (list (stmt-while cond-var (append body-ast cond-ast))))]
       ; for (a; b; c) { d } desugars to
       ; a; while (b) { d; c }
       [(list "for" type id "=" init-expr cond-expr inc-id inc-op inc-expr body)
@@ -309,15 +310,12 @@
                        (define inc-ast ((stmt inc-id inc-op inc-expr) state+))
                        (append body-ast inc-ast))))
         state)]
-      ; if (a) { b } desugars to
-      ; c = a; while (c) { b; c = 0 }
       [(list "if" cond-expr block)
        (define-values (cond-ast cond-var) (cond-expr state))
        (new-scope state)
        (define body-ast (block state))
        (end-scope state)
-       (define clear-ast (list (assign cond-var (op-const 0))))
-       (append cond-ast (list (while cond-var (append body-ast clear-ast))))]
+       (append cond-ast (list (stmt-if cond-var body-ast)))]
       [(list id "=" expr)
        (define var (var-idx id (block-state-parse state)))
        (define-values (ast _) (expr state var))
