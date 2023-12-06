@@ -72,30 +72,57 @@
              tail]
             [(stmt-nop) tail]))
 
+(define (new-var width)
+  (define width+ (max 1 width))
+  (define-symbolic* var (bitvector width+))
+  var)
+
 (define (symb-init-state func)
   (define widths-list (ast-function-widths func))
   (define widths (vector->immutable-vector (list->vector widths-list)))
 
   ; Initialise all variables to symbolic values
-  (define vars
-    (list->vector (map (lambda (width)
-                         (define width+ (max 1 width))
-                         (define-symbolic* var (bitvector width+))
-                         var)
-                       widths-list)))
+  (define vars (list->vector (map new-var widths-list)))
 
   (exec-state vars widths))
 
+(define (symb-init-state-pair other secret-idx)
+  (define widths (exec-state-widths other))
+  (define width (vector-ref widths secret-idx))
+  ; Hacky... Couldn't work out how to make a new vec otherwise
+  (define vars+ (list->vector (vector->list (exec-state-vars other))))
+  (vector-set! vars+ secret-idx (new-var width))
+  (exec-state vars+ widths))
+
 (define (symb-exec func fuel)
+  ; Define initial state
   (define state (symb-init-state func))
   (define ast (ast-function-ast func))
 
   ; Define execution function
   (define (symb-exec-core state ast fuel)
     (assert (> fuel 0) "Ran out of fuel")
-    (if (null? ast) (exec-state-vars state) (symb-exec-core state (step state ast) (- fuel 1))))
+    (if (null? ast) (void) (symb-exec-core state (step state ast) (- fuel 1))))
 
   ; Run, verifying assertions
   (displayln (verify (symb-exec-core state ast fuel))))
 
-(provide symb-exec)
+(define (symb-exec-product func secret-idx fuel)
+  ; Define initial state
+  (define s0 (symb-init-state func))
+  (define s1 (symb-init-state-pair s0 secret-idx))
+  (define ast (ast-function-ast func))
+
+  ; Define execution function
+  (define (symb-exec-core s0 s1 ast fuel)
+    (assert (> fuel 0) "Ran out of fuel")
+    (if (null? ast)
+        (void)
+        (let ([ast-0 (step s0 ast)] [ast-1 (step s1 ast)])
+          (assert (equal? ast-0 ast-1) "Control flow shouldn't diverge")
+          (symb-exec-core s0 s1 ast-0 (- fuel 1)))))
+
+  (displayln (verify (symb-exec-core s0 s1 ast fuel))))
+
+(provide symb-exec
+         symb-exec-product)

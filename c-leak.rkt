@@ -14,6 +14,7 @@
 (define lowered-prefix (make-parameter ""))
 (define symb-exec-funcs (make-parameter '()))
 (define symb-exec-fuel (make-parameter 5000))
+(define leakage-exec-funcs (make-parameter '()))
 
 (define input-file
   (command-line
@@ -28,6 +29,11 @@
             func
             "Symbolically execute func with arbitrary inputs, checking safety assertions"
             (symb-exec-funcs (cons func (symb-exec-funcs)))]
+   ["--leak-verify"
+    func
+    idx
+    "Symbolically execute func with arbitrary inputs and input idx set to a secret, looking for leakage violations"
+    (leakage-exec-funcs (cons (cons func (string->number idx)) (leakage-exec-funcs)))]
    #:args (input-file)
    input-file))
 
@@ -50,4 +56,11 @@
   (printf "Verifying function ~a with ~a steps of fuel...~n" name (symb-exec-fuel))
   (define func
     (hash-ref functions name (lambda () (error 'no-function "Can't find function ~a..." name))))
-  (time (symb-exec (hash-ref functions name) (symb-exec-fuel))))
+  (time (symb-exec func (symb-exec-fuel))))
+
+(for ([f (leakage-exec-funcs)])
+  (define-values (name secret-idx) (values (car f) (cdr f)))
+  (printf "Leakage verifying function ~a with ~a steps of fuel...~n" name (symb-exec-fuel))
+  (define func
+    (hash-ref functions name (lambda () (error 'no-function "Can't find function ~a..." name))))
+  (time (symb-exec-product func secret-idx (symb-exec-fuel))))
