@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <stdbool.h>
 #include "mini_aes.h"
 
 static const uint8_t s_box[16u] = {
@@ -39,10 +40,34 @@ static const uint8_t inv_s_box[16u] = {
     0b0101  // 1111
 };
 
+static uint8_t secure_s_box(uint8_t idx) {
+	idx &= 0x0F;
+	uint8_t result = 0u;
+	for (uint8_t i = 0u; i < 0x10; i += 1u) {
+		const bool enable = (idx == i);
+		uint8_t mask = enable | (enable << 1u);
+		mask |= mask << 2u;
+		result |= mask & s_box[i];
+	}
+	return result;
+}
+
+static uint8_t secure_inv_s_box(uint8_t idx) {
+	idx &= 0x0F;
+	uint8_t result = 0u;
+	for (uint8_t i = 0u; i < 0x10; i += 1u) {
+		const bool enable = (idx == i);
+		uint8_t mask = enable | (enable << 1u);
+		mask |= mask << 2u;
+		result |= mask & inv_s_box[i];
+	}
+	return result;
+}
+
 static block_t nibble_sub(const block_t block) {
 	block_t new_block = 0u;
 	for (uint8_t i = 0u; i < 16u; i += 4u) {
-		new_block |= s_box[(block >> i) & 0x000F] << i;
+		new_block |= secure_s_box((block >> i) & 0x000F) << i;
 	}
 
 	return new_block;
@@ -51,7 +76,7 @@ static block_t nibble_sub(const block_t block) {
 static block_t inv_nibble_sub(const block_t block) {
 	block_t new_block = 0u;
 	for (uint8_t i = 0u; i < 16u; i += 4u) {
-		new_block |= inv_s_box[(block >> i) & 0x000F] << i;
+		new_block |= secure_inv_s_box((block >> i) & 0x000F) << i;
 	}
 
 	return new_block;
@@ -72,9 +97,12 @@ static uint8_t gf_mul(uint8_t a, uint8_t b) {
 			result ^= a;
 		}
 		a <<= 1u;
-		if (a & 0b10000) {
-			a ^= 0b10011;
-		}
+		// if (a & 0b10000) {
+		//     a ^= 0b10011;
+		// }
+		// a ^= 0b10011 * ((a & 0b10000) > 0u);
+		const bool enable = ((a & 0b10000) > 0u);
+		a ^= enable | (enable << 1u) | (enable << 4u);
 		b >>= 1u;
 	}
 	return result;
@@ -105,9 +133,10 @@ static block_t next_key(const block_t previous_key, const uint8_t round) {
 	// w5 = w1 ^ w0 ^ perturb
 	// w6 = w2 ^ w1 ^ w0 ^ perturb
 	// w7 = w3 ^ w2 ^ w1 ^ w0 ^ perturb
-	const block_t perturb = (s_box[previous_key & 0x0F] ^ round) * 0x1111;
+	const uint8_t perturb_nibble = secure_s_box(previous_key & 0x0F) ^ round;
+	const uint8_t perturb_byte = perturb_nibble | (perturb_nibble << 4u);
 
-	block_t key = previous_key ^ perturb;
+	block_t key = previous_key ^ (perturb_byte | (perturb_byte << 8u));
 	for (uint8_t i = 1u; i < 4u; i += 1u) {
 		key ^= previous_key >> (4u * i);
 	}

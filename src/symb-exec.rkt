@@ -1,6 +1,7 @@
 #lang rosette/safe
 
 (require "ast.rkt")
+(require "leakage.rkt")
 (require "c-backend.rkt")
 (require rosette/lib/destruct)
 
@@ -133,21 +134,45 @@
   (when (unsat? cex)
     (displayln "VERIFIED: No counterexample found")))
 
-(define (symb-exec-product func secret-idx fuel)
+(define (symb-exec-product func secret-idx contracts fuel)
   ; Define initial state
   (define s0 (symb-init-state func))
   (define s1 (symb-init-state-pair s0 secret-idx))
   (define ast (ast-function-ast func))
 
+  (define (eval state)
+    (lambda (idx) (vector-ref (exec-state-vars state) idx)))
+
+  (define (check-contract contract eval-s0 eval-s1 stmt)
+    (define leak-0 ((leakage-contract-eval contract) eval-s0 stmt))
+    (define leak-1 ((leakage-contract-eval contract) eval-s1 stmt))
+    (assert
+     (equal? leak-0 leak-1)
+     (format "Programs produced different leakage (~a, ~a) for contract \"~a\" on statement:~n~a"
+             leak-0
+             leak-1
+             (leakage-contract-name contract)
+             (ast-to-c-str stmt))))
+
+  (define (check-contracts contracts eval-s0 eval-s1 stmt)
+    (destruct contracts
+              [(list) (void)]
+              [(list* head tail)
+               (check-contract head eval-s0 eval-s1 stmt)
+               (check-contracts tail eval-s0 eval-s1 stmt)]))
+
   ; Define execution function
   (define (symb-exec-core s0 s1 ast fuel)
     (assert (> fuel 0) "Ran out of fuel")
-    (if (null? ast)
-        (void)
-        (let ([ast-0 (step s0 ast)] [ast-1 (step s1 ast)])
-          (assert (equal? ast-0 ast-1)
-                  (format "Control flow diverged on statement:~n~a" (ast-to-c-str (car ast))))
-          (symb-exec-core s0 s1 ast-0 (- fuel 1)))))
+    (define (body)
+      (check-contracts contracts (eval s0) (eval s1) (car ast))
+      (define ast-0 (step s0 ast))
+      (define ast-1 (step s1 ast))
+      (assert (equal? ast-0 ast-1)
+              (format "Control flow diverged on statement:~n~a" (ast-to-c-str (car ast))))
+      (symb-exec-core s0 s1 ast-0 (- fuel 1)))
+
+    (if (null? ast) (void) (body)))
 
   (define cex (verify (symb-exec-core (copy-state s0) (copy-state s1) ast fuel)))
 

@@ -26,7 +26,7 @@ verify_all: verify_mini_aes verify_lowered_mini_aes verify_leakage_mini_aes
 
 verify_mini_aes: ${MINI_AES_VERIFY} ${MINI_AES_CORE} ${MINI_AES_LOWERED}
 	esbmc \
-		--k-induction --parallel-solving \
+		--k-induction \
 		--overflow-check --unsigned-overflow-check \
 		--ub-shift-check \
 		$^
@@ -35,14 +35,14 @@ verify_lowered_mini_aes: ${MINI_AES_CORE} ${TOOL_SRCS}
 	${TOOL} \
 		--verify mini_aes_check_enc_dec \
 		--verify mini_aes_check_dec_enc \
-		--fuel 2000 \
+		--fuel 10000 \
 		$<
 
 verify_leakage_mini_aes: ${MINI_AES_CORE} ${TOOL_SRCS}
 	${TOOL} \
 		--leak-verify mini_aes_encrypt_block key \
 		--leak-verify mini_aes_decrypt_block key \
-		--fuel 1000 \
+		--fuel 5000 \
 		$<
 
 ${MINI_AES_LOWERED}: ${MINI_AES_CORE} ${TOOL_SRCS}

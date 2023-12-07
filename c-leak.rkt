@@ -10,6 +10,7 @@
 (require "src/ast.rkt")
 (require "src/c-backend.rkt")
 (require "src/symb-exec.rkt")
+(require "src/leakage.rkt")
 
 (define lowered-path (make-parameter #f))
 (define lowered-prefix (make-parameter ""))
@@ -38,13 +39,15 @@
    #:args (input-file)
    input-file))
 
-(displayln "Preprocessing sources...")
-(define pre-processed (c-pre-process input-file))
-(displayln "Tokenizing and parsing sources...")
-(define tokens (tokenize (open-input-string pre-processed)))
-(define parse-tree (parse input-file tokens))
-(displayln "Lowering sources...")
-(define functions (lower-parse-tree parse-tree))
+(define functions
+  (time (begin
+          (displayln "Preprocessing sources...")
+          (define pre-processed (c-pre-process input-file))
+          (displayln "Tokenizing and parsing sources...")
+          (define tokens (tokenize (open-input-string pre-processed)))
+          (define parse-tree (parse input-file tokens))
+          (displayln "Lowering sources...")
+          (lower-parse-tree parse-tree))))
 
 (when (lowered-path)
   (printf "Writing lowered c to \"~a\"...~n" (lowered-path))
@@ -67,4 +70,7 @@
   (define secret-idx (+ 1 (index-of (ast-function-args func) secret-name)))
   (unless secret-idx
     (error 'no-arg "Function ~a doesn't have an argument \"~a\"" func-name secret-name))
-  (time (symb-exec-product func secret-idx (symb-exec-fuel))))
+  (time (symb-exec-product func
+                           secret-idx
+                           (list mul-leakage branch-leakage cache-leakage)
+                           (symb-exec-fuel))))
