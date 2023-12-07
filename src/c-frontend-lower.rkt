@@ -113,14 +113,17 @@
      (lambda (state)
        (new-scope state)
 
-       (define func (ast-function name (length params) '() '()))
+       (define func (ast-function name '() '() '()))
        (define state+ (block-state state func))
        (add-var state+ (ret-type state) #:idx 0)
 
        ; Add params
-       (for ([param params] [i (in-naturals)])
-         (define-values (name width) (param state))
-         (add-var state+ width #:name name #:idx (+ i 1)))
+       (define params+
+         (for/list ([param params] [i (in-naturals)])
+           (define-values (name width) (param state))
+           (add-var state+ width #:name name #:idx (+ i 1))
+           name))
+       (set-ast-function-args! func params+)
 
        ; Analyse block
        (set-ast-function-ast! func (block state+))

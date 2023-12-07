@@ -2,6 +2,7 @@
 
 (require racket/cmdline)
 (require racket/function)
+(require racket/list)
 (require "src/c-frontend-cpp.rkt")
 (require "src/c-frontend-lexer.rkt")
 (require "src/c-frontend-parser.brag")
@@ -13,7 +14,7 @@
 (define lowered-path (make-parameter #f))
 (define lowered-prefix (make-parameter ""))
 (define symb-exec-funcs (make-parameter '()))
-(define symb-exec-fuel (make-parameter 5000))
+(define symb-exec-fuel (make-parameter 2000))
 (define leakage-exec-funcs (make-parameter '()))
 
 (define input-file
@@ -31,17 +32,16 @@
             (symb-exec-funcs (cons func (symb-exec-funcs)))]
    ["--leak-verify"
     func
-    idx
-    "Symbolically execute func with arbitrary inputs and input idx set to a secret, looking for leakage violations"
-    (leakage-exec-funcs (cons (cons func (string->number idx)) (leakage-exec-funcs)))]
+    input
+    "Symbolically execute func with arbitrary inputs and input set to a secret, looking for leakage violations"
+    (leakage-exec-funcs (cons (cons func input) (leakage-exec-funcs)))]
    #:args (input-file)
    input-file))
 
 (displayln "Preprocessing sources...")
 (define pre-processed (c-pre-process input-file))
-(displayln "Tokenizing sources...")
+(displayln "Tokenizing and parsing sources...")
 (define tokens (tokenize (open-input-string pre-processed)))
-(displayln "Parsing sources...")
 (define parse-tree (parse input-file tokens))
 (displayln "Lowering sources...")
 (define functions (lower-parse-tree parse-tree))
@@ -52,15 +52,19 @@
   (functions-to-c-file functions out (lowered-prefix))
   (close-output-port out))
 
-(for ([name (symb-exec-funcs)])
-  (printf "Verifying function ~a with ~a steps of fuel...~n" name (symb-exec-fuel))
-  (define func
-    (hash-ref functions name (lambda () (error 'no-function "Can't find function ~a..." name))))
+(define (get-func name)
+  (hash-ref functions name (lambda () (error 'no-function "Can't find function ~a" name))))
+
+(for ([name (reverse (symb-exec-funcs))])
+  (printf "~nVerifying function ~a with ~a steps of fuel...~n" name (symb-exec-fuel))
+  (define func (get-func name))
   (time (symb-exec func (symb-exec-fuel))))
 
-(for ([f (leakage-exec-funcs)])
-  (define-values (name secret-idx) (values (car f) (cdr f)))
-  (printf "Leakage verifying function ~a with ~a steps of fuel...~n" name (symb-exec-fuel))
-  (define func
-    (hash-ref functions name (lambda () (error 'no-function "Can't find function ~a..." name))))
+(for ([f (reverse (leakage-exec-funcs))])
+  (define-values (func-name secret-name) (values (car f) (cdr f)))
+  (printf "~nLeakage verifying function ~a with ~a steps of fuel...~n" func-name (symb-exec-fuel))
+  (define func (get-func func-name))
+  (define secret-idx (+ 1 (index-of (ast-function-args func) secret-name)))
+  (unless secret-idx
+    (error 'no-arg "Function ~a doesn't have an argument \"~a\"" func-name secret-name))
   (time (symb-exec-product func secret-idx (symb-exec-fuel))))

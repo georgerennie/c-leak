@@ -1,6 +1,15 @@
-.PHONY: mini_aes verify_mini_aes verify_lowered_mini_aes lower_mini_aes fmt clean
+# Build binary
+.PHONY: mini_aes
+# Run all verification targets
+.PHONY: verify_all
+# Verify with ESBMC
+.PHONY: verify_mini_aes lower_mini_aes
+# Verify for functional or leakage correctness using rosette
+.PHONY: verify_lowered_mini_aes verify_leakage_mini_aes
+# Helpers
+.PHONY: fmt clean
 
-EXE := racket c-leak.rkt
+TOOL := racket c-leak.rkt
 RKT_SRCS := c-leak.rkt $(wildcard src/*.rkt)
 TOOL_SRCS := ${RKT_SRCS} $(wildcard src/*.brag)
 
@@ -13,6 +22,8 @@ MINI_AES_EXE := mini_aes/mini_aes
 mini_aes: ${MINI_AES_EXE}
 lower_mini_aes: ${MINI_AES_LOWERED}
 
+verify_all: verify_mini_aes verify_lowered_mini_aes verify_leakage_mini_aes
+
 verify_mini_aes: ${MINI_AES_VERIFY} ${MINI_AES_CORE} ${MINI_AES_LOWERED}
 	esbmc \
 		--k-induction --parallel-solving \
@@ -21,14 +32,21 @@ verify_mini_aes: ${MINI_AES_VERIFY} ${MINI_AES_CORE} ${MINI_AES_LOWERED}
 		$^
 
 verify_lowered_mini_aes: ${MINI_AES_CORE} ${TOOL_SRCS}
-	${EXE} \
+	${TOOL} \
 		--verify mini_aes_check_enc_dec \
 		--verify mini_aes_check_dec_enc \
-		--fuel 5000 \
+		--fuel 2000 \
+		$<
+
+verify_leakage_mini_aes: ${MINI_AES_CORE} ${TOOL_SRCS}
+	${TOOL} \
+		--leak-verify mini_aes_encrypt_block key \
+		--leak-verify mini_aes_decrypt_block key \
+		--fuel 1000 \
 		$<
 
 ${MINI_AES_LOWERED}: ${MINI_AES_CORE} ${TOOL_SRCS}
-	${EXE} --lowered-path $@ --lowered-prefix "lowered_" $<
+	${TOOL} --lowered-path $@ --lowered-prefix "lowered_" $<
 
 ${MINI_AES_EXE}: ${MINI_AES_SRCS}
 	${CC} -O3 -Wall -o $@ $^

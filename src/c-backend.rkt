@@ -122,6 +122,12 @@
     [(op? ast) (op-to-c ast port)])
   (void))
 
+(define/contract (ast-to-c-str ast)
+  (-> (or/c ast-function? block? stmt? op?) string?)
+  (define port (open-output-string))
+  (ast-to-c ast port)
+  (get-output-string port))
+
 (define/contract (functions-to-c-file functions port [prefix ""])
   (-> (hash/c string? ast-function?) output-port? string? void?)
   (displayln "#include <stdint.h>" port)
@@ -136,4 +142,5 @@
   (void))
 
 (provide ast-to-c
+         ast-to-c-str
          functions-to-c-file)

@@ -85,7 +85,7 @@
 ;
 ; ast contains the actual function contents as a list of statements
 (struct/contract ast-function
-                 ([name string?] [arity natural?] [widths (listof natural?)] [ast block?])
+                 ([name string?] [args (listof string?)] [widths (listof natural?)] [ast block?])
                  #:transparent
                  #:mutable)
 
@@ -93,5 +93,10 @@
   (-> ast-function? natural?)
   (length (ast-function-widths func)))
 
+(define/contract (ast-function-arity func)
+  (-> ast-function? natural?)
+  (length (ast-function-args func)))
+
 (provide (struct-out ast-function)
-         ast-function-vars)
+         ast-function-vars
+         ast-function-arity)
