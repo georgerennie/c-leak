@@ -91,6 +91,25 @@
 
   (exec-state vars widths))
 
+(define (conc-init-state func args)
+  (define widths-list (ast-function-widths func))
+  (define widths (vector->immutable-vector (list->vector widths-list)))
+
+  (define (val idx)
+    (if (and (> idx 0) (<= idx (length args))) (list-ref args (- idx 1)) 0))
+
+  ; Initialise all variables to concrete bitvector values
+  ; This isn't particularly clean. oh well...
+  (define vars
+    (list->vector (cdr (foldl (lambda (width acc)
+                                (define i (car acc))
+                                (define l (cdr acc))
+                                (cons (+ i 1) (append l (list (bv (val i) width)))))
+                              (cons 0 '())
+                              widths-list))))
+
+  (exec-state vars widths))
+
 ; Hacky... Couldn't work out how to make a new vec otherwise
 (define (copy-vec vec)
   (list->vector (vector->list vec)))
@@ -98,6 +117,8 @@
 (define (copy-state state)
   (exec-state (copy-vec (exec-state-vars state)) (exec-state-widths state)))
 
+; Copy an initial execution state, switching out secret-idx for a fresh
+; symbolic variable
 (define (symb-init-state-pair other secret-idx)
   (define widths (exec-state-widths other))
   (define width (vector-ref widths secret-idx))
@@ -133,6 +154,18 @@
 
   (when (unsat? cex)
     (displayln "VERIFIED: No counterexample found")))
+
+(define (concrete-exec func args)
+  ; Define initial state
+  (define state (conc-init-state func args))
+  (define ast (ast-function-ast func))
+
+  ; Define execution function
+  (define (symb-exec-core state ast)
+    (if (null? ast) (exec-state-vars state) (symb-exec-core state (step state ast))))
+
+  (define final-state (symb-exec-core state ast))
+  (bitvector->natural (vector-ref final-state 0)))
 
 (define (symb-exec-product func secret-idx contracts fuel)
   ; Define initial state
@@ -191,4 +224,5 @@
     (displayln "VERIFIED: No counterexample found")))
 
 (provide symb-exec
+         concrete-exec
          symb-exec-product)

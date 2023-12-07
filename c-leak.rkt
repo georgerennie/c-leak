@@ -3,6 +3,8 @@
 (require racket/cmdline)
 (require racket/function)
 (require racket/list)
+(require racket/string)
+(require racket/format)
 (require "src/c-frontend-cpp.rkt")
 (require "src/c-frontend-lexer.rkt")
 (require "src/c-frontend-parser.brag")
@@ -17,6 +19,7 @@
 (define symb-exec-funcs (make-parameter '()))
 (define symb-exec-fuel (make-parameter 2000))
 (define leakage-exec-funcs (make-parameter '()))
+(define exec-funcs (make-parameter '()))
 
 (define input-file
   (command-line
@@ -27,10 +30,16 @@
     fuel
     "Maximum number of statements to execute symbolically"
     (symb-exec-fuel (string->number fuel))]
-   #:multi ["--verify"
-            func
-            "Symbolically execute func with arbitrary inputs, checking safety assertions"
-            (symb-exec-funcs (cons func (symb-exec-funcs)))]
+   #:multi
+   ["--exec"
+    func
+    args
+    "Execute func with concrete inputs. Specify args as a space separated string of integers"
+    (exec-funcs (cons (cons func args) (exec-funcs)))]
+   ["--verify"
+    func
+    "Symbolically execute func with arbitrary inputs, checking safety assertions"
+    (symb-exec-funcs (cons func (symb-exec-funcs)))]
    ["--leak-verify"
     func
     input
@@ -57,6 +66,28 @@
 
 (define (get-func name)
   (hash-ref functions name (lambda () (error 'no-function "Can't find function ~a" name))))
+
+(for ([f (reverse (exec-funcs))])
+  (define-values (name args) (values (car f) (cdr f)))
+  (printf "~nExecuting function ~a with arguments (~a)...~n" name args)
+  (define func (get-func name))
+  (define args+ (map string->number (string-split args)))
+  (unless (eq? (length args+) (ast-function-arity func))
+    (error 'incorrect-args
+           "Wrong number of arguments (~a) provided. Expected ~a"
+           (length args+)
+           (ast-function-arity func)))
+  (for ([arg args+] [name (ast-function-args func)] [width (ast-function-widths func)])
+    (printf "~a: ~a~n"
+            name
+            (~r arg #:base 16 #:min-width (truncate (ceiling (/ width 4))) #:pad-string "0")))
+
+  (time (begin
+          (define result (concrete-exec func args+))
+          (define width (list-ref (ast-function-widths func) 0))
+          (printf
+           "result: ~a~n"
+           (~r result #:base 16 #:min-width (truncate (ceiling (/ width 4))) #:pad-string "0")))))
 
 (for ([name (reverse (symb-exec-funcs))])
   (printf "~nVerifying function ~a with ~a steps of fuel...~n" name (symb-exec-fuel))
