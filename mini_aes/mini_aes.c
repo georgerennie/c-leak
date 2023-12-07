@@ -1,6 +1,6 @@
+#include "mini_aes.h"
 #include <assert.h>
 #include <stdbool.h>
-#include "mini_aes.h"
 
 static const uint8_t s_box[16u] = {
     0b1110, // 0000
@@ -41,24 +41,27 @@ static const uint8_t inv_s_box[16u] = {
 };
 
 static uint8_t secure_s_box(uint8_t idx) {
-	idx &= 0x0F;
+	// Iterate through all indices to prevent cache timing side-channel from
+	// s-box lookup
 	uint8_t result = 0u;
 	for (uint8_t i = 0u; i < 0x10; i += 1u) {
-		const bool enable = (idx == i);
-		uint8_t mask = enable | (enable << 1u);
-		mask |= mask << 2u;
+		const bool match = (idx == i);
+		// Basic version: result |= s_box * match;
+		// This is vulnerable to a timing side-channel for non constant time
+		// multiplication (like on some basic microcontrollers) so we replace
+		// it with a 4-bit mask
+		const uint8_t mask = match | (match << 1u) | (match << 2u) | (match << 3u);
 		result |= mask & s_box[i];
 	}
 	return result;
 }
 
+// Same security hardening as secure_s_box
 static uint8_t secure_inv_s_box(uint8_t idx) {
-	idx &= 0x0F;
 	uint8_t result = 0u;
 	for (uint8_t i = 0u; i < 0x10; i += 1u) {
-		const bool enable = (idx == i);
-		uint8_t mask = enable | (enable << 1u);
-		mask |= mask << 2u;
+		const bool    match = (idx == i);
+		const uint8_t mask  = match | (match << 1u) | (match << 2u) | (match << 3u);
 		result |= mask & inv_s_box[i];
 	}
 	return result;
@@ -90,19 +93,32 @@ static block_t shift_row(const block_t block) {
 	return new_block;
 }
 
+// This function is constant time in a, but not in b. For our uses this is
+// fine, as one operand is always constant
 static uint8_t gf_mul(uint8_t a, uint8_t b) {
 	uint8_t result = 0u;
 	while (b > 0u) {
+		// Repeatedly add a (shifted) for each bit of b
 		if (b & 0x01) {
 			result ^= a;
 		}
 		a <<= 1u;
-		// if (a & 0b10000) {
-		//     a ^= 0b10011;
-		// }
+
+		// Reduce the result modulo the characteristic
+		// This naive version is vulnerable to timing attacks as it causes
+		// secret dependent divergent control flow
+		// if (a & 0b10000) { a ^= 0b10011; }
+		//
+		// This masked version is slightly better, but can leak information
+		// through the multiplication operation on microcontrollers without
+		// constant time multiplication
 		// a ^= 0b10011 * ((a & 0b10000) > 0u);
+		//
+		// This solution does not leak information through control flow or
+		// multiplication
 		const bool enable = ((a & 0b10000) > 0u);
 		a ^= enable | (enable << 1u) | (enable << 4u);
+
 		b >>= 1u;
 	}
 	return result;
@@ -134,9 +150,10 @@ static block_t next_key(const block_t previous_key, const uint8_t round) {
 	// w6 = w2 ^ w1 ^ w0 ^ perturb
 	// w7 = w3 ^ w2 ^ w1 ^ w0 ^ perturb
 	const uint8_t perturb_nibble = secure_s_box(previous_key & 0x0F) ^ round;
-	const uint8_t perturb_byte = perturb_nibble | (perturb_nibble << 4u);
+	const uint8_t perturb_byte   = perturb_nibble | (perturb_nibble << 4u);
+	const block_t perturb_block  = perturb_byte | (perturb_byte << 8u);
 
-	block_t key = previous_key ^ (perturb_byte | (perturb_byte << 8u));
+	block_t key = previous_key ^ perturb_block;
 	for (uint8_t i = 1u; i < 4u; i += 1u) {
 		key ^= previous_key >> (4u * i);
 	}
@@ -168,6 +185,8 @@ block_t mini_aes_decrypt_block(const block_t cipher, const block_t key) {
 	return plain;
 }
 
+// These two self checking functions are used to aid verification as they can
+// be verified both with esbmc (see verify_mini_aes.c) and c-leak
 void mini_aes_check_enc_dec(const block_t plain, const block_t key) {
 	assert(mini_aes_decrypt_block(mini_aes_encrypt_block(plain, key), key) == plain);
 }

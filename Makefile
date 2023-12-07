@@ -53,6 +53,7 @@ ${MINI_AES_EXE}: ${MINI_AES_SRCS}
 
 fmt:
 	raco fmt -i --width 100 ${RKT_SRCS}
+	clang-format -i ${MINI_AES_SRCS} $(wildcard mini_aes/*.h)
 
 clean:
 	rm -f ${MINI_AES_LOWERED}

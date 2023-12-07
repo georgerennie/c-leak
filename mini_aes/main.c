@@ -1,6 +1,9 @@
 #include <assert.h>
+#include <errno.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "mini_aes.h"
 
 // Note that the buffer is overwritten with each new call, so if the result
@@ -16,8 +19,44 @@ static const char* const bin_str(const block_t block) {
 	return str;
 }
 
-int main() {
+int main(int argc, char* argv[]) {
 	srand(0);
+
+	if (argc == 4) {
+		const bool encrypt = !strcmp(argv[1], "e");
+		const bool decrypt = !strcmp(argv[1], "d");
+		if (!encrypt && !decrypt) {
+			fprintf(stderr, "First argument should be \"e\" or \"d\". Got \"%s\"\n", argv[1]);
+			return EXIT_FAILURE;
+		}
+
+		const block_t source = strtol(argv[2], NULL, 0);
+		const block_t key    = strtol(argv[3], NULL, 0);
+
+		if (encrypt) {
+			printf("plain:  %04X\n", source);
+			printf("key:    %04X\n", key);
+			printf("cipher: %04X\n", mini_aes_encrypt_block(source, key));
+		}
+
+		if (decrypt) {
+			printf("cipher: %04X\n", source);
+			printf("key:    %04X\n", key);
+			printf("plain:  %04X\n", mini_aes_decrypt_block(source, key));
+		}
+
+		return EXIT_SUCCESS;
+	}
+
+	puts("mini_aes <e|d> <plain> <key>\n");
+	puts("Specify <e>ncode or <d>ecode, a source block and key block\n");
+
+	if (argc != 1) {
+		fprintf(stderr, "Expected 0 or 3 arguments. Got %d\n", argc - 1);
+		return EXIT_FAILURE;
+	}
+
+	puts("No arguments given so verifying random inputs\n");
 	for (size_t i = 0; i < 5; i++) {
 		const block_t p       = rand();
 		const block_t k       = rand();
@@ -25,10 +64,10 @@ int main() {
 		const block_t p_prime = mini_aes_decrypt_block(c, k);
 
 		printf("Example %zu\n", i);
-		printf("p:  0b%s\n", bin_str(p));
-		printf("p': 0b%s\n", bin_str(p_prime));
-		printf("k:  0b%s\n", bin_str(k));
-		printf("c:  0b%s\n", bin_str(c));
+		printf("plain:  0b%s\n", bin_str(p));
+		printf("plain': 0b%s\n", bin_str(p_prime));
+		printf("key:    0b%s\n", bin_str(k));
+		printf("cipher: 0b%s\n", bin_str(c));
 		assert(p == p_prime);
 	}
 }
