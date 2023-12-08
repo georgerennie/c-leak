@@ -49,7 +49,7 @@ ${MINI_AES_LOWERED}: ${MINI_AES_CORE} ${TOOL}
 	${TOOL} --lowered-path $@ --lowered-prefix "lowered_" $<
 
 ${MINI_AES_EXE}: ${MINI_AES_SRCS}
-	${CC} -O3 -Wall -o $@ $^
+	${CC} -O3 -Wall -Wextra -std=c11 -o $@ $^
 
 ${TOOL}: ${TOOL_SRCS}
 	raco exe -o $@ $<

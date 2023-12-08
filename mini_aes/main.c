@@ -1,4 +1,3 @@
-#include <assert.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -8,7 +7,7 @@
 
 // Note that the buffer is overwritten with each new call, so if the result
 // is used after subsequent calls, it must be copied out of the buffer first
-static const char* const bin_str(const block_t block) {
+static const char* bin_str(const block_t block) {
 	static char str[20];
 	for (uint8_t i = 0, idx = 0; i < 16; i++) {
 		str[idx++] = ((block >> (15 - i)) & 0x0001) + '0';
@@ -57,17 +56,24 @@ int main(int argc, char* argv[]) {
 	}
 
 	puts("No arguments given so verifying random inputs\n");
-	for (size_t i = 0; i < 5; i++) {
+	const uint32_t num = 1000000;
+	for (uint32_t i = 0; i < num; i++) {
 		const block_t p       = rand();
 		const block_t k       = rand();
 		const block_t c       = mini_aes_encrypt_block(p, k);
 		const block_t p_prime = mini_aes_decrypt_block(c, k);
 
-		printf("Example %zu\n", i);
-		printf("plain:  0b%s\n", bin_str(p));
-		printf("plain': 0b%s\n", bin_str(p_prime));
-		printf("key:    0b%s\n", bin_str(k));
-		printf("cipher: 0b%s\n", bin_str(c));
-		assert(p == p_prime);
+		if (p != p_prime) {
+			fprintf(stderr, "Failed verification for an input pattern:\n");
+			fprintf(stderr, "plain:  0b%s\n", bin_str(p));
+			fprintf(stderr, "key:    0b%s\n", bin_str(k));
+			fprintf(stderr, "cipher: 0b%s\n", bin_str(c));
+			fprintf(stderr, "plain': 0b%s\n", bin_str(p_prime));
+			return EXIT_FAILURE;
+		}
+
+		if ((i + 1) % 25000 == 0) {
+			printf("Verified %u patterns\n", i + 1);
+		}
 	}
 }
