@@ -9,10 +9,10 @@ int main() {
 	const block_t plain = oracle();
 	// Check that encrypting then decrypting, or decrypting then encrypting,
 	// gives back the same value
-	mini_aes_check_enc_dec(key, plain);
-	mini_aes_check_dec_enc(key, plain);
-	lowered_mini_aes_check_enc_dec(key, plain);
-	lowered_mini_aes_check_dec_enc(key, plain);
+	mini_aes_check_enc_dec(plain, key);
+	mini_aes_check_dec_enc(plain, key);
+	lowered_mini_aes_check_enc_dec(plain, key);
+	lowered_mini_aes_check_dec_enc(plain, key);
 
 	// Check that the original and lowered functions are equivalent
 	assert(lowered_mini_aes_encrypt_block(plain, key) == mini_aes_encrypt_block(plain, key));
