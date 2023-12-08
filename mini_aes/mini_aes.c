@@ -40,7 +40,7 @@ static const uint8_t inv_s_box[16u] = {
     0b0101  // 1111
 };
 
-static uint8_t secure_s_box(uint8_t idx) {
+static uint8_t secure_s_box(const uint8_t idx) {
 	// Iterate through all indices to prevent cache timing side-channel from
 	// s-box lookup
 	uint8_t result = 0u;
@@ -57,7 +57,7 @@ static uint8_t secure_s_box(uint8_t idx) {
 }
 
 // Same security hardening as secure_s_box
-static uint8_t secure_inv_s_box(uint8_t idx) {
+static uint8_t secure_inv_s_box(const uint8_t idx) {
 	uint8_t result = 0u;
 	for (uint8_t i = 0u; i < 0x10; i += 1u) {
 		const bool    match = (idx == i);
