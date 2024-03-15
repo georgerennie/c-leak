@@ -9,8 +9,8 @@
 # Helpers
 .PHONY: fmt clean
 
-TOOL := ./c-leak
-RKT_SRCS := c-leak.rkt $(wildcard src/*.rkt)
+TOOL := ./clique
+RKT_SRCS := clique.rkt $(wildcard src/*.rkt)
 TOOL_SRCS := ${RKT_SRCS} $(wildcard src/*.brag)
 
 MINI_AES_CORE := mini_aes/mini_aes.c

@@ -186,7 +186,7 @@ block_t mini_aes_decrypt_block(const block_t cipher, const block_t key) {
 }
 
 // These two self checking functions are used to aid verification as they can
-// be verified both with esbmc (see verify_mini_aes.c) and c-leak
+// be verified both with esbmc (see verify_mini_aes.c) and clique
 void mini_aes_check_enc_dec(const block_t plain, const block_t key) {
 	assert(mini_aes_encrypt_block(mini_aes_decrypt_block(plain, key), key) == plain);
 }

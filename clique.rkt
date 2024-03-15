@@ -23,7 +23,7 @@
 
 (define input-file
   (command-line
-   #:program "c-leak"
+   #:program "clique"
    #:once-each ["--lowered-path" path "Write lowered c file to this path" (lowered-path path)]
    ["--lowered-prefix" prefix "Add this prefix to all lowered functions" (lowered-prefix prefix)]
    ["--fuel"
